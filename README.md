@@ -28,7 +28,7 @@ Omarchy 掌管桌面默认配置。本仓库只保留有意为之的个人增补
 克隆时请连同子模块一起拉取（输入法插件位于子模块中）：
 
 ```bash
-git clone --recurse-submodules https://github.com/eastgold15/omarchy-cn-dotfiles
+git clone --recurse-submodules https://github.com/eastgold15/omarchy-ime ./omarchy/plugins/omarchy-ime
 ```
 
 先检查仓库：
