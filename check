@@ -11,7 +11,7 @@ fail() { printf '\033[1;31m[fail]\033[0m %s\n' "$*" >&2; FAILURES=$((FAILURES + 
 
 usage() {
   cat <<'EOF'
-Usage: ./check [all|mise|lazygit|yazi|hypr|looknfeel|git-identity|onepiece|plymouth|security] [...]
+Usage: ./check [all|mise|lazygit|yazi|hypr|git-identity|security] [...]
 EOF
 }
 
@@ -70,7 +70,7 @@ check_mise() {
   local config="$ROOT/config/mise/config.toml"
   local tool
   local required_tools=(
-    android-sdk
+    ast-grep
     bun
     claude
     codex
@@ -78,11 +78,8 @@ check_mise() {
     go
     java
     node
-    'npm:@puffinstudio/fizzyx'
-    'npm:agent-device'
-    'npm:eas-cli'
-    'npm:playwright'
-    opencode
+    pi
+    uv
   )
 
   [[ -s "$config" ]] || {
@@ -136,63 +133,6 @@ check_hypr() {
   ok "Hyprland input configuration is valid"
 }
 
-check_looknfeel() {
-  local config="$ROOT/config/hypr/looknfeel.lua"
-  local curve
-  local undefined
-
-  [[ -s "$config" ]] || {
-    fail "Missing appearance file: ${config#"$ROOT/"}"
-    return
-  }
-
-  if command -v lua >/dev/null 2>&1; then
-    if lua -e "assert(loadfile('$config'))"; then
-      ok "Hyprland appearance overrides have valid Lua syntax"
-    else
-      fail "Hyprland appearance overrides have invalid Lua syntax"
-    fi
-  else
-    warn "Lua is unavailable; skipped appearance syntax check"
-  fi
-
-  # Omarchy's themes own the border colors. Setting them here would silently
-  # detach the borders from `omarchy theme set`.
-  if grep -Eq '^[[:space:]]*(active_border|inactive_border|col)[[:space:]]*=' "$config"; then
-    fail "Appearance overrides must leave border colors to the active Omarchy theme"
-  else
-    ok "Appearance overrides leave border colors to Omarchy"
-  fi
-
-  grep -q 'rounding_power' "$config" ||
-    fail "Appearance overrides do not set a corner profile"
-  grep -Eq '^[[:space:]]*passes[[:space:]]*=' "$config" ||
-    fail "Appearance overrides do not configure blur"
-  grep -Eq 'leaf = "workspaces", enabled = true' "$config" ||
-    fail "Appearance overrides do not enable workspace animation"
-
-  # Every curve referenced by an animation has to be defined in the same file;
-  # Hyprland silently falls back to a default curve otherwise.
-  undefined=""
-  while read -r curve; do
-    [[ "$curve" == "default" ]] && continue
-    grep -Fq "hl.curve(\"$curve\"" "$config" || undefined+=" $curve"
-  done < <(sed -nE 's/.*bezier = "([^"]+)".*/\1/p' "$config" | sort -u)
-  if [[ -n "$undefined" ]]; then
-    fail "Animations reference undefined curves:$undefined"
-  else
-    ok "Every animation curve referenced is defined"
-  fi
-
-  # A screen shader that samples whole-screen brightness per pixel oscillates
-  # with its own content and flickers. Keep the compositor out of that.
-  if grep -q 'screen_shader' "$config"; then
-    fail "Appearance overrides set a screen shader, which flickers on content change"
-  fi
-
-  ok "Hyprland appearance module is valid"
-}
-
 check_git_identity() {
   local script="$ROOT/bin/git-identity"
 
@@ -213,231 +153,6 @@ check_git_identity() {
     fail "Git identity setup cannot export the configured public key"
   grep -q -- 'export-options export-minimal' "$script" ||
     fail "Git identity setup does not minimize exported public keys"
-}
-
-check_language_policy() {
-  local documentation_hits
-  local comment_hits
-
-  documentation_hits=$(rg -n -P '[\p{Han}]' \
-    --glob '*.md' \
-    "$ROOT" 2>/dev/null || true)
-  comment_hits=$(rg -n -P '^[[:space:]]*(#|//|;).*\p{Han}' \
-    --glob '!.git/**' \
-    "$ROOT" 2>/dev/null || true)
-
-  if [[ -n "$documentation_hits" || -n "$comment_hits" ]]; then
-    fail "Chinese explanatory text or comments are present"
-    [[ -n "$documentation_hits" ]] && printf '%s\n' "$documentation_hits" >&2
-    [[ -n "$comment_hits" ]] && printf '%s\n' "$comment_hits" >&2
-  else
-    ok "Documentation and comments follow the English-only policy"
-  fi
-}
-
-# Compare one hex value duplicated into a theme's shell section against the
-# colors.toml key it was copied from.
-check_bar_color() {
-  local bar_file="$1"
-  local colors_file="$2"
-  local bar_key="$3"
-  local colors_key="$4"
-  local bar_value
-  local colors_value
-
-  bar_value=$(sed -nE "s/^[[:space:]]*$bar_key[[:space:]]*=[[:space:]]*\"([^\"]+)\".*/\1/p" \
-    "$bar_file" | head -n 1)
-  colors_value=$(sed -nE "s/^[[:space:]]*$colors_key[[:space:]]*=[[:space:]]*\"([^\"]+)\".*/\1/p" \
-    "$colors_file" | head -n 1)
-
-  if [[ -z "$bar_value" || -z "$colors_value" ]]; then
-    fail "Unable to compare bar '$bar_key' with colors.toml '$colors_key'"
-    return
-  fi
-  if [[ "${bar_value,,}" != "${colors_value,,}" ]]; then
-    fail "Bar '$bar_key' ($bar_value) no longer matches colors.toml '$colors_key' ($colors_value)"
-  fi
-}
-
-check_onepiece() {
-  local theme="$ROOT/omarchy/themes/onepiece"
-  local colors="$theme/colors.toml"
-  local controls
-  local bar
-  local backgrounds
-  local key
-
-  [[ -d "$theme" && ! -L "$theme" ]] || {
-    fail "One Piece source must be a real directory"
-    return
-  }
-
-  if ! validate_toml "$colors"; then
-    fail "Invalid One Piece colors.toml"
-    return
-  fi
-
-  for key in accent foreground background cursor color0 color15; do
-    if ! grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$colors"; then
-      fail "One Piece colors.toml is missing '$key'"
-    fi
-  done
-
-  backgrounds=$(find "$theme/backgrounds" -maxdepth 1 -type f \
-    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) |
-    wc -l)
-  if (( backgrounds > 0 )); then
-    ok "One Piece theme has $backgrounds backgrounds"
-  else
-    fail "One Piece theme has no supported backgrounds"
-  fi
-
-  [[ -s "$theme/icons.theme" ]] || fail "One Piece theme is missing icons.theme"
-
-  # `omarchy theme set` merges shell.<section>.toml over the whole matching
-  # section of the generated shell.toml, so a partial file silently drops the
-  # tokens it omits. Keep every state the shell reads represented here.
-  controls="$theme/shell.controls.toml"
-  if [[ -s "$controls" ]]; then
-    for key in normal-fill-alpha normal-border-width hover-cursor-fill-alpha \
-      focus-fill-alpha focus-border-width selected-fill-alpha pressed-fill-alpha; do
-      grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$controls" ||
-        fail "One Piece control styling is missing '$key'"
-    done
-    # A borderless control set that also drops the focus outline leaves
-    # keyboard focus invisible.
-    if grep -Eq '^[[:space:]]*focus-border-width[[:space:]]*=[[:space:]]*0[[:space:]]*$' "$controls" &&
-      grep -Eq '^[[:space:]]*focus-fill-alpha[[:space:]]*=[[:space:]]*0(\.0+)?[[:space:]]*$' "$controls"; then
-      fail "One Piece control styling leaves keyboard focus with no visible cue"
-    fi
-    if grep -Eq '^[[:space:]]*(normal|hover-cursor|focus|selected)-color[[:space:]]*=[[:space:]]*"#' "$controls"; then
-      warn "One Piece control styling hardcodes hex instead of palette role names"
-    fi
-    ok "One Piece control styling covers every shell state token"
-  fi
-
-  # [bar] resolves through Color.qml, which takes hex only — no palette role
-  # names — and the section merge replaces the whole block. The colors are
-  # therefore duplicated from colors.toml, so verify they still agree.
-  bar="$theme/shell.bar.toml"
-  if [[ -s "$bar" ]]; then
-    for key in background background-alpha text active size-horizontal size-vertical; do
-      grep -Eq "^[[:space:]]*$key[[:space:]]*=" "$bar" ||
-        fail "One Piece bar styling is missing '$key'"
-    done
-
-    check_bar_color "$bar" "$colors" background background
-    check_bar_color "$bar" "$colors" text foreground
-    check_bar_color "$bar" "$colors" active color1
-
-    if ! grep -Eq '^[[:space:]]*background-alpha[[:space:]]*=[[:space:]]*(0(\.[0-9]+)?|1(\.0+)?)[[:space:]]*$' "$bar"; then
-      fail "One Piece bar background-alpha is not a 0..1 value"
-    fi
-
-    # A see-through bar without blur on its layer is unreadable over a busy
-    # wallpaper, and the blur rule lives in the Hyprland config, not the theme.
-    if grep -Eq '^[[:space:]]*background-alpha[[:space:]]*=[[:space:]]*0(\.0+)?[[:space:]]*$' "$bar" &&
-      ! grep -q 'namespace = "omarchy-bar"' "$ROOT/config/hypr/looknfeel.lua"; then
-      fail "Transparent bar has no matching blur layer rule in looknfeel.lua"
-    fi
-    ok "One Piece bar styling matches colors.toml"
-  fi
-
-  ok "One Piece theme structure is valid"
-}
-
-check_plymouth() {
-  local theme_name="zoro"
-  local theme="$ROOT/system/plymouth/themes/$theme_name"
-  local active_theme
-  local preview="$ROOT/assets/zoro-plymouth.gif"
-  local script="$theme/zoro.script"
-  local descriptor="$theme/zoro.plymouth"
-  local media="$theme/media"
-  local max_frame
-  local frame
-  local missing=0
-  local count
-  local dimensions
-  local preview_dimensions
-  local preview_frames
-
-  for frame in "$script" "$descriptor" "$theme/bullet.png" "$theme/entry.png" "$preview"; do
-    [[ -s "$frame" ]] || fail "Missing Plymouth asset: ${frame#"$ROOT/"}"
-  done
-  grep -q 'assets/zoro-plymouth.gif' "$ROOT/README.md" ||
-    fail "README does not include the Zoro Plymouth preview"
-
-  max_frame=$(sed -nE 's/.*i <= ([0-9]+).*/\1/p' "$script" | head -n 1)
-  [[ "$max_frame" =~ ^[0-9]+$ ]] || {
-    fail "Unable to read maximum frame from zoro.script"
-    return
-  }
-
-  for ((frame = 0; frame <= max_frame; frame++)); do
-    [[ -s "$media/$frame.png" ]] || missing=$((missing + 1))
-  done
-  count=$(find "$media" -maxdepth 1 -type f -name '*.png' | wc -l)
-
-  if (( missing == 0 && count == max_frame + 1 )); then
-    ok "Zoro frame sequence is complete: 0..$max_frame"
-  else
-    fail "Zoro frames do not match script: count=$count missing=$missing max=$max_frame"
-  fi
-
-  grep -q '^ImageDir=/usr/share/plymouth/themes/zoro$' "$descriptor" ||
-    fail "zoro.plymouth has an unexpected ImageDir"
-  grep -q '^ScriptFile=/usr/share/plymouth/themes/zoro/zoro.script$' "$descriptor" ||
-    fail "zoro.plymouth has an unexpected ScriptFile"
-
-  if command -v magick >/dev/null 2>&1; then
-    if magick identify "$preview" >/dev/null 2>&1; then
-      ok "Zoro README animation is a valid GIF"
-    else
-      fail "Zoro README animation is invalid"
-    fi
-    preview_dimensions=$(magick identify \
-      -format '%[fx:page.width]x%[fx:page.height]\n' \
-      "$preview[0]")
-    [[ "$preview_dimensions" == "640x360" ]] ||
-      fail "Zoro README animation has unexpected dimensions: $preview_dimensions"
-    preview_frames=$(magick identify -format '%n\n' "$preview" | head -n 1)
-    [[ "$preview_frames" == "77" ]] ||
-      fail "Zoro README animation has an unexpected frame count: $preview_frames"
-    dimensions=$(find "$media" -maxdepth 1 -type f -name '*.png' -print0 |
-      sort -zV |
-      xargs -0 magick identify -format '%wx%h\n' |
-      sort -u)
-    if [[ $(wc -l <<<"$dimensions") -eq 1 ]]; then
-      ok "Zoro frames share dimensions: $dimensions"
-    else
-      fail "Zoro frames use inconsistent dimensions: $dimensions"
-    fi
-  else
-    warn "ImageMagick is unavailable; skipped Zoro image validation"
-  fi
-
-  # Omarchy 4 manages Plymouth itself. `omarchy plymouth set`,
-  # `omarchy plymouth set by theme`, and `omarchy refresh plymouth` each force
-  # plymouth-set-default-theme back to `omarchy`, because Omarchy's model is a
-  # single generated theme rather than a set of installed ones. Nothing runs
-  # them automatically — `omarchy update` does not touch Plymouth — but any of
-  # them silently replaces Zoro, and that only becomes visible at the next
-  # boot. Surface the drift here instead.
-  if command -v plymouth-set-default-theme >/dev/null 2>&1; then
-    active_theme="$(plymouth-set-default-theme 2>/dev/null || true)"
-    if [[ -z "$active_theme" ]]; then
-      warn "Unable to read the active Plymouth theme"
-    elif [[ "$active_theme" == "$theme_name" ]]; then
-      ok "Zoro is the active Plymouth theme"
-    else
-      warn "Active Plymouth theme is '$active_theme', not '$theme_name'; run ./install plymouth to restore it"
-    fi
-  else
-    warn "plymouth-set-default-theme is unavailable; skipped active-theme check"
-  fi
-
-  ok "Zoro Plymouth theme structure is valid"
 }
 
 check_security() {
@@ -475,21 +190,14 @@ run_check() {
       check_lazygit
       check_yazi
       check_hypr
-      check_looknfeel
       check_git_identity
-      check_onepiece
-      check_plymouth
-      check_language_policy
       check_security
       ;;
     lazygit) check_lazygit ;;
     mise) check_mise ;;
     yazi) check_yazi ;;
     hypr) check_hypr ;;
-    looknfeel) check_looknfeel ;;
     git-identity) check_git_identity ;;
-    onepiece) check_onepiece ;;
-    plymouth) check_plymouth ;;
     security) check_security ;;
     *) usage; fail "Unknown check: $1" ;;
   esac

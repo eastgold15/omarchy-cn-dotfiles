@@ -1,197 +1,91 @@
 # Omarchy Dotfiles
 
-Minimal, public-oriented personal configuration for Omarchy 4.x.
+面向公开分享的极简个人配置，适用于 Omarchy 4.x。
 
-Omarchy owns the desktop defaults. This repository only keeps deliberate
-personal additions:
+Omarchy 掌管桌面默认配置。本仓库只保留有意为之的个人增补：
 
-- Lazygit workflow customizations
-- Small Yazi overrides
-- Hyprland appearance overrides and theme-level Omarchy shell styling
-- The custom `onepiece` Omarchy theme
-- The animated `zoro` Plymouth theme
-- A reproducible global CLI toolset managed by mise
+- Lazygit 工作流定制
+- 少量 Yazi 覆盖配置
+- Hyprland 输入与快捷键覆盖配置
+- `omarchy.ime` 输入法插件（以 Git 子模块形式收录）
+- 由 mise 管理的可复现全局 CLI 工具集
 
-<p align="center">
-  <img src="assets/zoro-plymouth.gif" alt="Zoro Plymouth boot animation preview">
-</p>
+本仓库有意不替换 Omarchy 的 Neovim、tmux、终端、Git、shell、状态栏、锁屏或生成的主题状态，也不再附带任何自定义主题——主题完全交给 Omarchy 自带的主题系统管理。Hyprland 文件仅包含少量用户自有的输入与快捷键覆盖配置。
 
-It intentionally does not replace Omarchy's Neovim, tmux, terminal, Git,
-shell, bar, lock-screen, or generated theme state. The Hyprland files contain
-only small user-owned input and keybinding overrides.
+## 兼容性
 
-## Compatibility
+已在以下环境测试：
 
-Tested against:
-
-- Omarchy `4.0.0.r1472.g283276b-1` (`edge`)
+- Omarchy `4.0.0.r1472.g283276b-1`（`edge`）
 - Hyprland `0.56.1`
 - Lazygit `0.63.1`
 - Yazi `26.5.6`
-- Plymouth `26.134.222`
-- Limine-based initramfs rebuilding
 
-The repository follows Omarchy's public CLI and user-override boundaries. It
-never writes to `/usr/share/omarchy`.
+本仓库遵循 Omarchy 的公开 CLI 与用户覆盖边界，绝不写入 `/usr/share/omarchy`。
 
-## Install
+## 安装
 
-Inspect the repository first:
+克隆时请连同子模块一起拉取（输入法插件位于子模块中）：
+
+```bash
+git clone --recurse-submodules https://github.com/eastgold15/omarchy-cn-dotfiles
+```
+
+先检查仓库：
 
 ```bash
 ./check all
 ./install --dry-run all
 ```
 
-On a fresh Omarchy machine, install the recovered system packages, the global
-mise toolset, and all unprivileged configuration in one pass:
+在全新的 Omarchy 机器上，一次性安装恢复的系统软件包、全局 mise 工具集以及所有非特权配置：
 
 ```bash
 ./install --dry-run bootstrap
 ./install bootstrap
 ```
 
-The bootstrap includes explicit packages recovered from the current machine's
-shell and pacman history: `cloc`, `cosign`, `minisign`, and `silicon`.
-Package-manager dependencies are not listed separately. It deliberately
-excludes Plymouth because changing the boot splash rebuilds the initramfs.
+bootstrap 包含从当前机器的 shell 与 pacman 历史中恢复的显式软件包：`cloc`、`cosign`、`minisign` 和 `silicon`。包管理器依赖不单独列出。
 
-Install the unprivileged modules:
+安装非特权模块：
 
 ```bash
 ./install all
 ```
 
-`all` installs Lazygit, Yazi, Hyprland overrides,
-appearance overrides, and the One Piece theme. It deliberately excludes
-Plymouth because changing the boot splash rebuilds the initramfs.
+`all` 会安装 Lazygit、Yazi 以及 Hyprland 覆盖配置。
 
-Install packages required by the optional modules:
+安装可选模块所需的软件包：
 
 ```bash
 ./install packages
 ```
 
-Install only the global development tools:
+仅安装全局开发工具：
 
 ```bash
 ./install tools
 ```
 
-This links `~/.config/mise` to the repository and runs `mise install`. Native
-tools such as Bun, Node.js, Go, Java, Codex, Claude, GitHub CLI, OpenCode, and
-the Android SDK use their mise backends. JavaScript CLIs previously installed
-globally with Bun or npm (`fizzyx`, `agent-device`, `eas-cli`, and Playwright)
-use mise's isolated `npm:` backend, so they no longer depend on a shared global
-package directory. The recovered package versions are pinned where known;
-existing rolling tool selections remain on `latest`.
+这会将 `~/.config/mise` 链接到本仓库并运行 `mise install`。Bun、Node.js、Go、Java、Codex、Claude、GitHub CLI、uv、pi 和 ast-grep 均使用各自的 mise 后端安装；现有工具选择保持 `latest`，已知需要固定的版本（Node.js、Java）已固定。
 
-Install Zoro Plymouth explicitly:
+## 输入法
 
-```bash
-./install --dry-run plymouth
-./install plymouth
-```
+输入法配置由 `omarchy.ime` Omarchy 插件掌管，包括 Fcitx5 偏好设置、Rime 方案与词典，以及 Classic UI 主题。该插件独立维护于 [eastgold15/omarchy-ime](https://github.com/eastgold15/omarchy-ime)，在本仓库中以 Git 子模块形式收录于 `omarchy/plugins/omarchy.ime`。本仓库自身仅在 `config/hypr/input.lua` 中保留 Hyprland 左 Shift 切换。
 
-The Plymouth installer asks `sudo` for authorization in the interactive
-terminal, preserves an existing custom Zoro directory, changes the selected
-theme, and rebuilds with `limine-mkinitcpio` when available.
+## 私有 Git 身份
 
-## One Piece theme
-
-Install the theme as a real user-owned directory:
-
-```bash
-./install onepiece
-omarchy theme set onepiece
-```
-
-The installer does not switch themes automatically.
-
-## Appearance
-
-The `looknfeel` module replaces Omarchy's conservative Hyprland defaults with a
-more animated desktop, without touching any keybinding:
-
-```bash
-./install looknfeel
-```
-
-It installs `~/.config/hypr/looknfeel.lua`, which Omarchy loads after both its
-own defaults and the active theme's Hyprland overrides. It turns on blur,
-shadows, rounded corners, and inactive-window dimming; re-enables the workspace
-slide animation that Omarchy disables; and replaces the default easing with
-Material 3 expressive curves, where spatial properties overshoot slightly before
-settling and opacity never does.
-
-Border width is set here because it is theme-agnostic, but border colors are
-deliberately left out so `omarchy theme set` keeps control of them; the One
-Piece theme sets its own below. `./check looknfeel` enforces that split, and
-also verifies that every easing curve referenced by an animation is actually
-defined — Hyprland silently substitutes a default curve for a misspelled name.
-
-The module also blurs the `omarchy-bar` layer, which is what lets the One Piece
-theme make the bar transparent without the text becoming unreadable.
-
-An anti-flashbang screen shader was tried here and removed. Estimating average
-screen luminance inside a fragment shader makes the dim factor track screen
-content, so the whole screen visibly pulses whenever anything moves, and a
-stateless shader cannot smooth that over time. For night comfort use Omarchy's
-own `omarchy toggle nightlight`, which shifts color temperature through
-hyprsunset rather than modulating brightness.
-
-Note that on Omarchy 4 the Hyprland config is Lua, and `hyprctl keyword` no
-longer works against it. Runtime changes have to go through `hyprctl eval`.
-
-### Theme-level shell styling
-
-Omarchy's stock control chrome is border-first: a 1px outline over an almost
-transparent fill. That is most of what gives the shell its terminal look. The
-One Piece theme inverts it — no outlines, and a tonal fill that carries the
-shape instead — through three files:
-
-- `shell.controls.toml` — control state tokens, using palette role names so
-  they keep following `colors.toml`
-- `shell.bar.toml` — a transparent bar
-- `hyprland.lua` — muted window borders, since the generated default uses the
-  raw accent at full opacity
-
-`omarchy theme set` merges any `shell.<section>.toml` over the matching section
-of the generated `shell.toml`, and never overwrites a file the theme already
-ships. Both are supported extension points, so none of this touches
-`/usr/share/omarchy`.
-
-The merge replaces a whole section rather than individual keys, so each file
-repeats every token that section needs. `[bar]` resolves through a path that
-takes hex only, so its colors are duplicated from `colors.toml`;
-`./check onepiece` compares the two and fails when they drift apart.
-
-## Input methods
-
-Input-method configuration moved to the `ryuhzk.ime` Omarchy plugin, which owns
-the Fcitx5 preferences, the Rime schemas and dictionaries, and the Classic UI
-theme. This repository keeps only the Hyprland left Shift toggle in
-`config/hypr/input.lua`.
-
-## Private Git identity
-
-Keep author identity and signing information out of the public repository:
+将作者身份与签名信息保留在公开仓库之外：
 
 ```bash
 bin/git-identity
 ```
 
-The interactive setup writes `~/.config/git/identity` with mode `0600` and
-adds that file to Git's global include list. Existing identity data is backed
-up under `~/.local/state/dotfiles/backups/`.
+交互式设置会以 `0600` 权限写入 `~/.config/git/identity`，并将该文件加入 Git 的全局 include 列表。现有身份数据会备份到 `~/.local/state/dotfiles/backups/` 下。
 
-When signing is enabled, the script reuses a secret key matching the Git email.
-If none exists, it creates a passphrase-protected Ed25519 signing key with a
-two-year expiration and records its full fingerprint automatically. GnuPG asks
-for the passphrase in the interactive terminal; neither the passphrase nor the
-secret key is stored by this repository.
+启用签名时，脚本会复用与 Git 邮箱匹配的密钥。若不存在，则创建带密码保护的 Ed25519 签名密钥，有效期两年，并自动记录其完整指纹。GnuPG 会在交互式终端中询问密码；本仓库既不存储密码，也不存储密钥。
 
-For non-interactive setup:
+非交互式设置：
 
 ```bash
 bin/git-identity \
@@ -200,52 +94,43 @@ bin/git-identity \
   --sign
 ```
 
-Use `--signing-key "YOUR_OPENPGP_FINGERPRINT"` to select an existing key
-explicitly, or `--no-sign` when commit signing is not wanted. Automatic key
-creation still requires an interactive terminal so GnuPG can request a
-passphrase. The script contains no real name, email address, or key fingerprint.
+使用 `--signing-key "YOUR_OPENPGP_FINGERPRINT"` 显式选择现有密钥，或在不需要提交签名时使用 `--no-sign`。自动创建密钥仍需要交互式终端，以便 GnuPG 请求密码。脚本中不包含任何真实姓名、邮箱地址或密钥指纹。
 
-Back up the secret key separately after creating it. Never store a private-key
-export in this repository.
+创建密钥后请单独备份密钥。切勿将私钥导出存储在本仓库中。
 
-Print the configured public key in ASCII-armored form:
+以 ASCII 装甲形式打印已配置的公钥：
 
 ```bash
 bin/git-identity --export-public-key
 ```
 
-Copy it directly for GitHub:
+直接复制到 GitHub：
 
 ```bash
 bin/git-identity --export-public-key | wl-copy
 ```
 
-This action exports only the public key associated with Git's configured
-fingerprint. The script deliberately provides no secret-key export action.
+此操作仅导出与 Git 所配置指纹关联的公钥。脚本有意不提供私钥导出操作。
 
-## Individual modules
+## 各独立模块
 
 ```bash
 ./install lazygit
 ./install yazi
-./install onepiece
-./install plymouth
+./install hypr
+./install tools
+./install packages
 ```
 
-Conflicting user configuration is moved to:
+冲突的用户配置会被移动到：
 
 ```text
 ~/.local/state/dotfiles/backups/<timestamp>/
 ```
 
-## Repository policy
+## 仓库策略
 
-- Only allowlisted modules are installed.
-- Machine-local and private data never belongs in this repository.
-- Omarchy-generated state under `~/.local/state/omarchy` is never tracked.
-- Omarchy themes are copied, not symlinked.
-- Documentation and explanatory comments are English-only. Non-English strings
-  remain only where they are functional theme data.
-- System themes require an explicit module install.
-- Media assets are not covered by the repository's MIT license; see
-  [ASSETS.md](ASSETS.md).
+- 仅安装允许列表中的模块。
+- 机器本地与私有数据绝不进入本仓库。
+- `~/.local/state/omarchy` 下由 Omarchy 生成的状态绝不被跟踪。
+- 不附带自定义主题；主题由 Omarchy 自带的主题系统管理。

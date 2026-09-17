@@ -18,15 +18,12 @@ usage() {
 Usage: ./install [--dry-run] <module> [module...]
 
 Modules:
-  all        Install lazygit, yazi, hypr, looknfeel, and onepiece
+  all        Install lazygit, yazi, and hypr
   bootstrap  Install packages, mise-managed tools, and all user configuration
   lazygit    Link the Lazygit configuration
   yazi       Link the Yazi configuration
   tools      Link the global mise configuration and install its declared tools
   hypr       Copy the Hyprland input and keybinding configuration
-  looknfeel  Copy the Hyprland appearance overrides
-  onepiece   Copy the One Piece theme into the Omarchy user theme directory
-  plymouth   Install Zoro system-wide and rebuild the initramfs
   packages   Install packages listed in packages/official.txt through Omarchy
 
 Options:
@@ -110,105 +107,6 @@ install_hypr() {
   ok "Installed Hyprland input configuration"
 }
 
-install_looknfeel() {
-  local config_src="$ROOT/config/hypr/looknfeel.lua"
-  local config_dest="$CONFIG_HOME/hypr/looknfeel.lua"
-
-  "$ROOT/check" looknfeel
-  install_copied_file "$config_src" "$config_dest" "hypr-looknfeel.lua"
-
-  if (( ! DRY_RUN )) && command -v hyprctl >/dev/null 2>&1; then
-    hyprctl reload
-    hyprctl configerrors
-  fi
-  ok "Installed Hyprland appearance overrides"
-}
-
-install_onepiece() {
-  local src="$ROOT/omarchy/themes/onepiece"
-  local parent="$CONFIG_HOME/omarchy/themes"
-  local dest="$parent/onepiece"
-
-  "$ROOT/check" onepiece
-
-  if [[ -d "$dest" && ! -L "$dest" ]] && diff -qr "$src" "$dest" >/dev/null; then
-    ok "onepiece is already installed"
-    return
-  fi
-
-  backup_user_path "$dest" "omarchy-theme-onepiece"
-  run mkdir -p "$parent"
-  run cp -a "$src" "$dest"
-  ok "Installed the One Piece Omarchy theme"
-  info "Activate it manually with: omarchy theme set onepiece"
-}
-
-rebuild_initramfs() {
-  if command -v limine-mkinitcpio >/dev/null 2>&1; then
-    sudo limine-mkinitcpio
-  else
-    sudo mkinitcpio -P
-  fi
-}
-
-install_plymouth() {
-  local theme="zoro"
-  local src="$ROOT/system/plymouth/themes/$theme"
-  local themes_root="/usr/share/plymouth/themes"
-  local dest="$themes_root/$theme"
-  local stage="$themes_root/.${theme}.dotfiles.$$"
-  local system_backup_root="/var/lib/dotfiles/backups/plymouth"
-  local system_backup="$system_backup_root/${theme}.$(date +%Y%m%d-%H%M%S)"
-  local previous_theme
-  local had_existing=0
-
-  "$ROOT/check" plymouth
-  previous_theme="$(plymouth-set-default-theme 2>/dev/null || true)"
-
-  if (( DRY_RUN )); then
-    info "Would install Plymouth theme '$theme' (current: ${previous_theme:-unknown})"
-    show_command sudo install -d -m 0755 "$stage"
-    show_command sudo cp -a "$src/." "$stage/"
-    [[ -e "$dest" ]] && show_command sudo mv "$dest" "$system_backup"
-    show_command sudo mv "$stage" "$dest"
-    show_command sudo plymouth-set-default-theme "$theme"
-    if command -v limine-mkinitcpio >/dev/null 2>&1; then
-      show_command sudo limine-mkinitcpio
-    else
-      show_command sudo mkinitcpio -P
-    fi
-    return
-  fi
-
-  info "Installing Plymouth theme '$theme'"
-  sudo -v
-  sudo install -d -m 0755 "$stage"
-  sudo cp -a "$src/." "$stage/"
-
-  if sudo test -e "$dest"; then
-    had_existing=1
-    sudo install -d -m 0755 "$system_backup_root"
-    sudo mv "$dest" "$system_backup"
-  fi
-  sudo mv "$stage" "$dest"
-
-  if ! sudo plymouth-set-default-theme "$theme" || ! rebuild_initramfs; then
-    warn "Plymouth rebuild failed; restoring the previous selection"
-    sudo mv "$dest" "${dest}.failed.$(date +%Y%m%d-%H%M%S)" || true
-    if (( had_existing )); then
-      sudo mv "$system_backup" "$dest" || true
-    fi
-    if [[ -n "$previous_theme" ]]; then
-      sudo plymouth-set-default-theme "$previous_theme" || true
-      rebuild_initramfs || true
-    fi
-    die "Plymouth installation failed; the new files were preserved with a .failed suffix"
-  fi
-
-  ok "Installed and activated Plymouth theme '$theme'"
-  [[ -n "$previous_theme" ]] && info "Previous Plymouth theme: $previous_theme"
-}
-
 install_packages() {
   local official_file="$ROOT/packages/official.txt"
   local aur_file="$ROOT/packages/aur.txt"
@@ -259,8 +157,6 @@ install_user_modules() {
   install_linked_config lazygit
   install_linked_config yazi
   install_hypr
-  install_looknfeel
-  install_onepiece
 }
 
 install_bootstrap() {
@@ -293,9 +189,6 @@ main() {
       lazygit|yazi) install_linked_config "$arg" ;;
       tools) install_tools ;;
       hypr) install_hypr ;;
-      looknfeel) install_looknfeel ;;
-      onepiece) install_onepiece ;;
-      plymouth) install_plymouth ;;
       packages) install_packages ;;
       *) die "Unknown module: $arg" ;;
     esac

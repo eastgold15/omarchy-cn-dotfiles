@@ -1,0 +1,3 @@
+[submodule "omarchy/plugins/omarchy-ime"]
+	path = omarchy/plugins/omarchy-ime
+	url = https://github.com/eastgold15/omarchy-ime
