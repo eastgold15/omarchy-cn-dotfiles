@@ -6,11 +6,11 @@ Omarchy 掌管桌面默认配置。本仓库只保留有意为之的个人增补
 
 - Lazygit 工作流定制
 - 少量 Yazi 覆盖配置
-- Hyprland 输入与快捷键覆盖配置
+- Hyprland 个人覆盖配置（入口、显示器、输入、快捷键、自启动、环境变量）
 - `omarchy.ime` 输入法插件（以 Git 子模块形式收录）
 - 由 mise 管理的可复现全局 CLI 工具集
 
-本仓库有意不替换 Omarchy 的 Neovim、tmux、终端、Git、shell、状态栏、锁屏或生成的主题状态，也不再附带任何自定义主题——主题完全交给 Omarchy 自带的主题系统管理。Hyprland 文件仅包含少量用户自有的输入与快捷键覆盖配置。
+本仓库有意不替换 Omarchy 的 Neovim、tmux、终端、Git、shell、状态栏、锁屏或生成的主题状态，也不再附带任何自定义主题——主题完全交给 Omarchy 自带的主题系统管理。`config/hypr/` 下的 Lua 文件均为用户自有覆盖：`hyprland.lua` 在加载 Omarchy 默认配置后引入其余覆盖文件，`monitors.lua`、`input.lua`、`bindings.lua`、`autostart.lua`、`envs.lua` 分别对应显示器、输入、快捷键、自启动与环境变量。`./install hypr` 会复制 `config/hypr/` 下的全部 `*.lua` 与 `scripts/` 下的辅助脚本（若存在）。
 
 ## 兼容性
 

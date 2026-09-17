@@ -56,6 +56,50 @@
 -- hl.gesture({ fingers = 3, direction = "left", action = function() hl.dispatch(hl.dsp.focus({ direction = "l" })) end })
 -- hl.gesture({ fingers = 3, direction = "right", action = function() hl.dispatch(hl.dsp.focus({ direction = "r" })) end })
 
+hl.config({
+  input = {
+    -- Use multiple keyboard layouts and switch between them with Left Alt + Right Alt.
+    kb_layout = "us",
+    -- ctrl:swapcaps 交换左 Ctrl 和 Caps Lock；compose 照旧，避免抢键
+    kb_options = "ctrl:swapcaps,compose:caps",
+
+    -- Use a specific keyboard variant if needed (e.g. intl for international keyboards).
+    kb_variant = "intl",
+
+    -- Start with numlock on by default.
+    numlock_by_default = true,
+
+    touchpad = {
+      -- Use natural (inverse) scrolling.
+      natural_scroll = true,
+
+      -- Use two-finger clicks for right-click instead of lower-right corner.
+      clickfinger_behavior = true,
+
+      -- Control the speed of your scrolling.
+      scroll_factor = 0.4,
+
+      -- Enable the touchpad while typing.
+      disable_while_typing = true,
+
+      -- Left-click-and-drag with three fingers.
+      drag_3fg = 1,
+    },
+  },
+})
+
+-- App-specific touchpad scroll speeds.
+o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
+o.window("com.mitchellh.ghostty", { scroll_touchpad = 0.2 })
+
+-- Enable touchpad gestures for changing workspaces.
+-- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/
+hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+
+-- Enable touchpad gestures for moving focus (helpful on scrolling layout).
+hl.gesture({ fingers = 4, direction = "left", action = function() hl.dispatch(hl.dsp.focus({ direction = "l" })) end })
+hl.gesture({ fingers = 4, direction = "right", action = function() hl.dispatch(hl.dsp.focus({ direction = "r" })) end })
+
 -- Fcitx5 does not receive modifier-only release events reliably through the
 -- Wayland input-method protocol. Treat a standalone left Shift tap as the
 -- existing Ctrl+Space input-method toggle while preserving Shift shortcuts.

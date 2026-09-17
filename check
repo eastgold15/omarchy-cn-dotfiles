@@ -55,13 +55,10 @@ check_yazi() {
     fi
   done
 
-  if command -v yazi >/dev/null 2>&1; then
-    if YAZI_CONFIG_HOME="$ROOT/config/yazi" yazi --debug >/dev/null 2>&1; then
-      ok "Yazi accepts the repository config directory"
-    else
-      fail "Yazi rejected the repository config directory"
-    fi
-  else
+  # Yazi 26+ removed --debug and requires a TTY even for --help, so there is
+  # no headless way to have it validate the config. TOML validation above is
+  # all we can do here.
+  if ! command -v yazi >/dev/null 2>&1; then
     warn "yazi is not installed; run ./install packages before using this module"
   fi
 }
@@ -118,12 +115,38 @@ PY
 
 check_hypr() {
   local file="$ROOT/config/hypr/input.lua"
-  local bindings="$ROOT/config/hypr/bindings.lua"
 
   [[ -s "$file" ]] || {
     fail "Missing Hyprland input configuration"
     return
   }
+
+  local lua_file found=0
+  for lua_file in "$ROOT/config/hypr/"*.lua; do
+    [[ -f "$lua_file" ]] || continue
+    found=1
+    if command -v luac >/dev/null 2>&1; then
+      if luac -p "$lua_file" 2>/dev/null; then
+        ok "Valid Lua syntax: ${lua_file#"$ROOT/"}"
+      else
+        fail "Invalid Lua syntax: ${lua_file#"$ROOT/"}"
+      fi
+    else
+      warn "luac is unavailable; skipped Lua syntax validation for ${lua_file#"$ROOT/"}"
+    fi
+  done
+  (( found )) || fail "No Hyprland Lua configuration found"
+
+  local script
+  for script in "$ROOT/config/hypr/scripts/"*.sh; do
+    [[ -f "$script" ]] || continue
+    if bash -n "$script"; then
+      ok "Valid Bash syntax: ${script#"$ROOT/"}"
+    else
+      fail "Invalid Bash syntax: ${script#"$ROOT/"}"
+    fi
+  done
+
   grep -q 'input.keyboard.key' "$file" ||
     fail "Hyprland input configuration does not monitor keyboard events"
   grep -q 'fcitx5-remote -t' "$file" ||

@@ -23,7 +23,7 @@ Modules:
   lazygit    Link the Lazygit configuration
   yazi       Link the Yazi configuration
   tools      Link the global mise configuration and install its declared tools
-  hypr       Copy the Hyprland input and keybinding configuration
+  hypr       Copy the Hyprland Lua overrides and helper scripts
   packages   Install packages listed in packages/official.txt through Omarchy
 
 Options:
@@ -93,18 +93,33 @@ install_hypr() {
   local name
 
   "$ROOT/check" hypr
-  for name in input.lua bindings.lua; do
+
+  # Every *.lua override (hyprland, monitors, input, bindings, autostart, envs, ...).
+  local lua_file
+  for lua_file in "$ROOT/config/hypr/"*.lua; do
+    [[ -f "$lua_file" ]] || continue
+    name="$(basename "$lua_file")"
     install_copied_file \
-      "$ROOT/config/hypr/$name" \
+      "$lua_file" \
       "$CONFIG_HOME/hypr/$name" \
       "hypr-$name"
+  done
+
+  # Helper scripts referenced by bindings (e.g. touchpad-toggle.sh).
+  local script
+  for script in "$ROOT/config/hypr/scripts/"*; do
+    [[ -f "$script" ]] || continue
+    install_copied_file \
+      "$script" \
+      "$CONFIG_HOME/hypr/scripts/$(basename "$script")" \
+      "hypr-scripts-$(basename "$script")"
   done
 
   if (( ! DRY_RUN )) && command -v hyprctl >/dev/null 2>&1; then
     hyprctl reload
     hyprctl configerrors
   fi
-  ok "Installed Hyprland input configuration"
+  ok "Installed Hyprland configuration"
 }
 
 install_packages() {
